@@ -1,0 +1,34 @@
+{% extends "global/Page.html" %}
+{% load staticfiles otree_tags %}
+
+{% block title %}
+    Contribution (Period {{ player.round_number }} of
+    {{ session.config.num_rounds }})
+{% endblock %}
+
+{% block content %}
+
+    {% if session.config.threshold > 0 %}
+   <div class="alert alert-secondary" role="alert">
+        The group threshold is {{ session.config.threshold }}. If the total contribution of your group falls below that threshold,
+        the group project will not be executed leading to a group project payoff of 0.
+   </div>
+    {% endif %}
+
+
+    {% formfield player.contribution %}
+
+    {% if session.config.cheap_talk %}
+
+        <p>You can use the chat box below to communicate with the other participants in your group.</p>
+
+    {% chat %}<br>
+    {% endif %}
+
+
+
+    {% next_button %}
+
+
+{#    {{ block.super }}#}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "global/Page.html" %}
+{% load staticfiles otree_tags %}
+
+{% block title %}
+    Results  (Period {{ subsession.round_number }} of {{ session.config.num_rounds }})
+{% endblock %}
+
+{% block content %}
+
+    {% include 'classroom_pgg/resultstable.html' %}
+    {% next_button %}
+{% endblock %}

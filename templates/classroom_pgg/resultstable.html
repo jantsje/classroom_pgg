@@ -1,0 +1,87 @@
+{% load staticfiles otree_tags %}
+{% block styles %}
+
+    <style>
+        td#filka {
+            width: 20px;
+            font-weight: bold;
+            font-size: 120%;
+        }</style>
+
+{% endblock %}
+
+<div class="panel-body">
+    <table class="table table-hover table-striped table-bordered">
+
+        <thead class="thead-default">
+
+        </thead>
+        <tbody>
+
+{% if session.config.threshold > 0 %}
+
+     {%  if group.reached_threshold %} <!--this loop is not easy to fix in the models-->
+   <div class="alert alert-success" role="alert">
+       Total contributions: {{ group.total_contribution }}.
+       The threshold ({{ session.config.threshold }}) <strong> was reached.</strong> <br>
+       Total earnings from the project: {{ group.total_share }}</div>
+    {% else  %}
+    <div class="alert alert-danger" role="alert">
+        Total contributions: {{ group.total_contribution }}.
+        The threshold ({{ session.config.threshold }})<strong> was not reached. </strong> <br>
+        Total earnings from the project: {{ group.total_share }}. </div>
+    {% endif %}
+
+{% endif %}
+
+        <tr>
+            <td>Your endowment:</td>
+            <td id="filka"></td>
+            <td><strong>{{ Constants.endowment }} </strong></td>
+
+        </tr>
+
+        <tr>
+            <td>Your contribution to the project:</td>
+            <td> -</td>
+            <td><strong>{{ player.contribution }}</strong></td>
+
+        </tr>
+
+        <tr>
+            <td>Your earnings from the project:</td>
+            <td> +</td>
+            <td><b>{{ group.individual_share }}</b></td>
+        </tr>
+
+        {% if session.config.punishment %}
+
+        <tr>
+            <td>Punishment you sent:</td>
+            <td> -</td>
+            <td><b>{{ player.punishment_sent }}</b></td>
+        </tr>
+        <tr>
+            <td>Punishment you received:</td>
+            <td> -</td>
+            <td><b>{{ player.punishment_received }}</b></td>
+        </tr>
+
+        {% endif %}
+
+        <tr>
+            <td>Your payoff in this round:</td>
+            <td> =</td>
+            <td><b>{{ player.payoff }}</b></td>
+        </tr>
+        <thead class="thead-dark">
+            <tr>
+                <th>Your cumulated payoff so far:</th>
+                <th> =</th>
+                <th><b>{{ participant.payoff }}</b></th>
+            </tr>
+        </thead>
+
+        </tbody>
+    </table>
+</div>

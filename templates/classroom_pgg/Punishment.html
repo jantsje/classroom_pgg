@@ -1,0 +1,95 @@
+{% extends "global/Page.html" %}
+{% load otree %}
+
+{% block title %}
+    Deduction stage (Period {{ subsession.round_number }} of
+    {{ session.config.num_rounds }})
+{% endblock %}
+
+{% block content %}
+
+    <div class="card">
+        <div class="card-header">
+            <b> Instructions for stage 2</b>
+        </div>
+        <div class="card-body">
+
+            In this stage you can see the decisions and other participants in the your group,
+            You can transfer up to <strong>{{ player.punishment_endowment }} points </strong> from your endowment to
+            decrease the
+            income of these
+            participants. By transferring 1 point from your endowment you decrease the income of another
+            participant by {{ session.config.punishment_factor }} points.
+
+        </div>
+    </div>
+
+
+
+    {% if form.non_form_errors %}
+        {% for error in form.non_form_errors %}
+            <div class="alert alert-danger mt-3">
+                {{ error }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <table class="table table-hover table-striped table-responsive">
+        {{ form.management_form }}
+        <thead>
+        <tr>
+            <th>Player:</th>
+            <th>Contibution</th>
+            <th>Deduction tokens</th>
+            <th>Effect on their payoff:</th>
+        </tr>
+        </thead>
+
+        {% for f in form.forms %}
+            <tr>
+                <td class="text-nowrap">Player {{ forloop.counter }}</td>
+                <td class="text-center">{{ f.instance.receiver.contribution }}</td>
+                <td>{% formfield f.amount label='' %}</td>
+                {% for hidden in f.hidden_fields %}
+                    {{ hidden }}
+                {% endfor %}
+                <td id="{{ f.amount.id_for_label }}"></td>
+            </tr>
+
+        {% endfor %}
+    </table>
+
+    {% next_button %}
+
+
+{% endblock %}
+{% block styles %}
+    <style>
+        .table {
+            display: table !important
+        }
+    </style>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        const min_val = 0;
+        const max_val = {{ player.punishment_endowment|json }};
+        const pun_factor = {{ session.config.punishment_factor|json }};
+        $(function () {
+
+            $('div.field-amount input').on('input', function () {
+                var curvalue = $(this).val();
+                if (curvalue < min_val) {
+                    $(this).val( min_val);
+                };
+                if (curvalue > max_val) {
+                    $(this).val( max_val);
+                }
+                var curvalue = $(this).val();
+                var punishment_sent = -curvalue * pun_factor;
+                $('td#' + $(this).attr('id')).html(punishment_sent);
+            })
+        });
+    </script>
+{% endblock %}
