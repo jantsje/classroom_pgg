@@ -1,0 +1,324 @@
+---
+title: "Results classroom PGG"
+author: "Jantsje Mol"
+date: "23/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# !diagnostics off
+here <- here::here # because lubridate also has a here function
+
+library(tidyverse, stringr)
+library(numbers)
+library(dplyr)
+select <- dplyr::select
+filter <- dplyr::filter
+timespent <- read.csv(here("_DATA", "TimeSpent (accessed 2019-12-05).csv"), sep = ',', header=TRUE)
+
+timespent$time_stamp <- as.POSIXct(as.POSIXct(timespent$time_stamp, origin="1970-01-01", tz="Europe/Berlin"))
+timespent <- timespent %>% 
+  rename(pp_code = participant__code,
+         pp_id = participant__id_in_session,
+         seconds = seconds_on_page) %>% 
+  add_count(pp_code, sort=TRUE) %>% 
+  arrange(pp_code, page_index) %>% 
+  select(-c(auto_submitted, subsession_pk, app_name, n)) 
+
+# check this after final order:
+timespent <- timespent %>%
+  group_by(pp_code) %>% 
+  mutate(seconds_total = sum(seconds)) %>%
+  filter(page_index == max(page_index)) %>%
+  select(-c(page_index, pp_id, page_name, time_stamp, seconds)) %>%
+  arrange(pp_code) %>% 
+  mutate(pp_minutes= as.integer(seconds_total/60),
+         pp_seconds= mod(seconds_total,60))
+
+df <- read.csv(here("_DATA", "all_apps_wide_2019-12-05.csv"), sep = ',', header=TRUE) 
+
+df <- df %>% 
+  rename(pp_code = participant.code,
+         pp_label = participant.label,
+         pp_payoff = participant.payoff,
+         pp_start_time = participant.time_started,
+         pp_id = participant.id_in_session,
+         session_label = session.label,
+         grup_id = pggfg.1.group.id_in_subsession) # typo is intentional to be able to deselect all other group_ variables
+
+df <- merge(df,timespent,by="pp_code") %>% 
+  rename(session_num_rounds = session.config.num_rounds,
+         session_chat = session.config.cheap_talk,
+         session_threshold = session.config.threshold,
+         session_punishment = session.config.punishment)
+rm(timespent)
+df <- df %>% 
+  select(-contains("config")) %>%
+  select(-contains("punishment_endowment")) %>%
+  select(-contains("subsession")) %>%
+  select(-contains("id_in_group")) %>%
+  select(-contains("_share")) %>%
+  select(-contains("average_contribution")) %>%
+  select(-contains("pd_payoff")) %>%
+  select(-c(session.experimenter_name, participant._is_bot, participant._max_page_index,
+            participant._current_page_name, participant._current_app_name, participant.visited, 
+            participant.ip_address, participant.mturk_worker_id, participant.mturk_assignment_id, session.mturk_HITId, 
+            session.comment, session.mturk_HITGroupId, session.is_demo, participant._index_in_pages,
+            pp_code, participant.payoff_plus_participation_fee)) 
+
+thenames <- names(df)
+function.clean_varnames <-  function(text){
+  if(grepl("player", text, perl=TRUE) | grepl("group", text, perl=TRUE)){
+    if(grepl("pggfg", text, perl=TRUE)){text <- sub(pattern = "pggfg.", replacement = "", x = text)}
+    if(grepl(".player", text, perl=TRUE)){text <- sub(pattern = ".player", replacement = "", x = text)} 
+    if(grepl(".group", text, perl=TRUE)){text <- sub(pattern = ".group", replacement = "", x = text)} 
+    text <- strsplit(text, '[.]')
+    text <- text[[1]][c(2,1)]
+    text <- paste(text, collapse='_')
+  }
+  else {text <- text}} 
+thenames <- lapply(thenames, function.clean_varnames)
+names(df) <- thenames 
+rm(thenames, function.clean_varnames)
+
+
+# to make the data tidy:
+
+df <- df %>% 
+  gather(variable,value,-c("pp_label", "pp_start_time", "pp_payoff", "pp_id", "session.code", "session_label",
+                           "session_id", "seconds_total", "pp_minutes", "pp_seconds", 
+                           "session_chat", "session_threshold", "session_punishment", "session_num_rounds",
+                           "grup_id")) %>%
+  mutate(round = parse_number(variable)) %>%
+  mutate(variable =  gsub("\\d","",x = variable)) %>% 
+  spread(variable,value) %>% 
+  rename(contribution = contribution_,
+         payoff = payoff_,
+         group_contribution = total_contribution_,
+         reached_threshold = reached_threshold_,
+         punishment_received = punishment_received_,
+         punishment_sent = punishment_sent_,
+         session_code = session.code,
+         group_id = grup_id) %>% 
+  select(-c("session_id", "seconds_total")) %>% 
+  mutate(contribution = case_when(round > session_num_rounds ~ NA_integer_,
+                                  TRUE ~ contribution),
+         payoff = case_when(round > session_num_rounds ~ NA_integer_,
+                                  TRUE ~ payoff),
+         punishment_received = case_when(round > session_num_rounds ~ NA_integer_,
+                                  TRUE ~ punishment_received),
+         punishment_sent = case_when(round > session_num_rounds ~ NA_integer_,
+                                  TRUE ~ punishment_sent),
+         reached_threshold = case_when(round > session_num_rounds ~ NA_integer_,
+                                     TRUE ~ reached_threshold),
+         group_contribution = case_when(round > session_num_rounds ~ NA_integer_,
+                                     TRUE ~ group_contribution),
+         punishment_received = case_when(session_punishment == 0 ~ NA_integer_,
+                                         TRUE ~ punishment_received),
+         punishment_sent = case_when(session_punishment == 0 ~ NA_integer_,
+                                         TRUE ~ punishment_sent),
+         reached_threshold = case_when(session_threshold == 0 ~ NA_integer_,
+                                     TRUE ~ reached_threshold)) 
+
+parameters.session1 <- df %>% 
+  filter(session_label == "session 1") %>% 
+  filter(pp_id == max(pp_id), round == 1) %>% 
+  select(starts_with("session"), pp_id, group_id)
+
+# remove data with one round only from session 4
+df <- df %>% 
+  filter(session_label != "session 4 - mistake one round")
+
+df <- df %>% 
+  mutate(pp_id = case_when(session_code == "yqh9u6ma" ~ pp_id + 63,
+                        TRUE ~ as.numeric(pp_id)),
+         group_id = case_when(session_code == "yqh9u6ma" ~ group_id + 11,
+                              TRUE ~ as.numeric(group_id))) 
+
+
+df.session4 <- df %>% 
+  filter(session_label == "session 4") 
+```
+
+## Session 1: one shot PGG
+*Thursday October 31st, 2019*
+
+In this game, `r parameters.session1$pp_id` students participated.
+
+* Number of rounds: `r parameters.session1$session_num_rounds`
+* Group size: `r parameters.session1$pp_id/parameters.session1$group_id` 
+* Multiplication factor: 1.6
+* Punishment: `r parameters.session1$session_punishment`
+* Threshold: `r parameters.session1$session_threshold`
+* Chat: `r parameters.session1$session_chat`
+
+```{r histograms contributions, echo = FALSE, warning = FALSE, message=FALSE}
+df.session1 <- df %>% 
+  filter(round == 1,
+         session_label == "session 1")
+
+fig.contribution <- ggplot(df.session1, aes(x=contribution), subset = round == 1) + geom_histogram(binwidth = 5, color = "white") +
+  labs(x="Individual contribution", y = "Frequency") 
+
+fig.group.contribution <- ggplot(df.session1, aes(x=group_contribution), subset = round == 1) + geom_histogram(binwidth = 10, color = "white") +
+  labs(x="Group contribution", y = "Frequency") + scale_x_continuous(limits = c(0,300))
+
+library(gridExtra)
+grid.arrange(fig.contribution, fig.group.contribution,
+             nrow = 1)
+
+ggplot(df.session1, aes(x=payoff)) + geom_histogram(binwidth = 5, color = "white") +
+  labs(x="Individual payoff in points", y = "Frequency") + scale_x_continuous(limits = c(40,220)) +
+  geom_vline(xintercept=160/3, linetype = "dashed") + annotate(geom = "label", x = 160/3, y = 13, label = "minimum") +
+  geom_vline(xintercept=206, linetype = "dashed") + annotate(geom = "label", x = 205, y = 13, label = "maximum") +
+  geom_vline(xintercept=(300*1.6)/3, linetype = "dashed") + annotate(geom = "label", x = (300*1.6)/3, y = 13, label = "full contribution") 
+
+rm(list = ls(pattern = "fig"))
+rm(parameters.session1)
+
+```
+
+```{r, include = FALSE}
+parameters.session2 <- df %>% 
+  filter(session_label == "session 2") %>% 
+  filter(pp_id == max(pp_id), round == 1) %>% 
+  select(starts_with("session"), pp_id, group_id)
+
+```
+## Session 2: ten rounds PGG
+*Monday November 4th, 2019*
+
+In this game, `r parameters.session2$pp_id` students participated.
+
+* Number of rounds: `r parameters.session2$session_num_rounds`
+* Group size: `r parameters.session2$pp_id/parameters.session2$group_id`
+* Multiplication factor: 1.6
+* Punishment: `r parameters.session2$session_punishment`
+* Threshold: `r parameters.session2$session_threshold`
+* Chat: `r parameters.session2$session_chat`
+
+```{r, include = FALSE}
+parameters.session3 <- df %>% 
+  filter(session_label == "session 3") %>% 
+  filter(pp_id == max(pp_id), round == 1) %>% 
+  select(starts_with("session"), pp_id, group_id)
+
+```
+## Session 3: ten rounds PGG
+*Monday November 11th, 2019*
+
+In this game, `r parameters.session3$pp_id` students participated.
+
+* Number of rounds: `r parameters.session3$session_num_rounds`
+* Group size: `r parameters.session3$pp_id/parameters.session3$group_id`
+* Multiplication factor: 1.6
+* Punishment: `r parameters.session3$session_punishment`
+* Threshold: `r parameters.session3$session_threshold`
+* Chat: `r parameters.session3$session_chat`
+
+```{r, include = FALSE}
+parameters.session4 <- df %>% 
+  filter(session_label == "session 4") %>% 
+  filter(pp_id == max(pp_id), round == 1) %>% 
+  select(starts_with("session"), pp_id, group_id)
+
+```
+## Session 4: ten rounds PGG
+*Thursday November 21st, 2019*
+
+In this game, `r parameters.session4$pp_id` students participated.
+
+* Number of rounds: `r parameters.session4$session_num_rounds`
+* Group size: 3
+* Multiplication factor: 1.6
+* Punishment: `r parameters.session4$session_punishment`
+* Threshold: `r parameters.session4$session_threshold`
+* Chat: `r parameters.session4$session_chat`
+
+
+## Latest leaderboard
+```{r, echo = FALSE, warning= FALSE, message=FALSE, results = 'asis'}
+df.leaderboard <- df %>% 
+  filter(session_label != "session 1", round == 1) %>%   # excluding session 1 because of technical issues
+  select(pp_label, pp_payoff, session_code, session_label) %>% 
+  mutate(session_label2 = case_when(session_code == "yqh9u6ma" ~ "session4a",
+                                    session_code == "r0mrr9qi" ~ "session4b", 
+                                    TRUE ~ as.character(session_label))) %>% 
+  select(pp_label, pp_payoff, session_label2) %>% 
+  spread(session_label2, pp_payoff) %>% 
+  mutate("session 4" = pmax(session4a, session4b, na.rm = TRUE)) %>% 
+  select(-c("session4a", "session4b")) %>% 
+  mutate(pp_payoff_total = rowSums(select(., starts_with("session")), na.rm = TRUE)) %>% 
+  filter(pp_label != "mke240") %>% 
+  filter(pp_label != "jml740") %>% # teachers cannot win 
+  arrange(-pp_payoff_total) %>% 
+  filter(row_number() < 4) %>% 
+  mutate(ranking = row_number()) %>% 
+  select(ranking, pp_label, pp_payoff_total, starts_with("session")) # this also adds the order
+
+library(kableExtra)
+knitr::kable(df.leaderboard) %>% 
+  kableExtra::kable_styling(full_width = F, 
+                            position = "left")
+```
+
+
+## Average individual contributions over rounds
+
+```{r, echo = FALSE, warning= FALSE, message=FALSE}
+df <- df %>% 
+  mutate(session_label_inf = case_when(session_label == "session 1" ~ "Basic one round",
+                                       session_label == "session 2" ~ "Basic ten rounds",
+                                       session_label == "session 3" ~ "Threshold",
+                                       session_label == "session 4" ~ "Threshold + chat",
+                                       session_label == "session 5" ~ "Threshold + chat + punishment"))
+
+df.gather <- df %>% 
+  group_by(round, session_label_inf) %>% 
+  summarise(mean.contribution = mean(contribution, na.rm=TRUE),
+            sd.contribution = sd(contribution, na.rm=TRUE),
+            n.contribution = n()) %>% 
+  mutate(se.contribution = sd.contribution / sqrt(n.contribution),
+         lower.ci.contribution = mean.contribution - qt(1 - (0.05 / 2), n.contribution - 1) * se.contribution,
+         upper.ci.contribution = mean.contribution + qt(1 - (0.05 / 2), n.contribution - 1) * se.contribution)
+
+
+ggplot(data=subset(df.gather, session_label_inf == "Basic one round"), aes(x=round, y=mean.contribution, color = session_label_inf)) + geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=lower.ci.contribution, ymax=upper.ci.contribution), alpha=0.9, width=.1) +
+  scale_x_continuous(breaks = c(1:10)) + labs(y="Average individual contribution", x= "Round", color = "Session") +
+  scale_y_continuous(limit = c(0,100)) + scale_color_brewer(palette="Dark2")
+
+ggplot(data = subset(df.gather, session_label_inf == "Basic one round" | session_label_inf ==  "Basic ten rounds"), aes(x=round, y=mean.contribution, color = session_label_inf)) + geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=lower.ci.contribution, ymax=upper.ci.contribution), alpha=0.9, width=.1) +
+  scale_x_continuous(breaks = c(1:10)) + labs(y="Average individual contribution", x= "Round", color = "Session") +
+  scale_y_continuous(limit = c(0,100)) + scale_color_brewer(palette="Dark2")
+
+ggplot(data = subset(df.gather, 
+                     session_label_inf == "Basic one round" | 
+                       session_label_inf ==  "Basic ten rounds" | 
+                       session_label_inf == "Threshold"), aes(x=round, y=mean.contribution, color = session_label_inf)) + geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=lower.ci.contribution, ymax=upper.ci.contribution), alpha=0.9, width=.1) +
+  scale_x_continuous(breaks = c(1:10)) + labs(y="Average individual contribution", x= "Round", color = "Session") +
+  scale_y_continuous(limit = c(0,100)) + scale_color_brewer(palette="Dark2")
+
+ggplot(data = subset(df.gather, 
+                     session_label_inf == "Basic one round" | 
+                       session_label_inf ==  "Basic ten rounds" | 
+                       session_label_inf == "Threshold" | 
+                       session_label_inf == "Threshold + chat"), aes(x=round, y=mean.contribution, color = session_label_inf)) + geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=lower.ci.contribution, ymax=upper.ci.contribution), alpha=0.9, width=.1) +
+  scale_x_continuous(breaks = c(1:10)) + labs(y="Average individual contribution", x= "Round", color = "Session") +
+  scale_y_continuous(limit = c(0,100)) + scale_color_brewer(palette="Dark2")
+
+ggplot(df.gather, aes(x=round, y=mean.contribution, color = session_label_inf)) + geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=lower.ci.contribution, ymax=upper.ci.contribution), alpha=0.9, width=.1) +
+  scale_x_continuous(breaks = c(1:10)) + labs(y="Average individual contribution", x= "Round", color = "Session") +
+  scale_y_continuous(limit = c(0,100)) + scale_color_brewer(palette="Dark2")
+```
+
+
+
+
+
+
+```

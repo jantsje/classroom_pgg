@@ -31,15 +31,7 @@ class AfterContribWP(WaitPage):
     def is_displayed(self):
         return self.subsession.round_number <= self.session.config["num_rounds"]
 
-
-class ResultsWaitPage(WaitPage):
-    def after_all_players_arrive(self):
-        self.group.set_payoffs()
-
-    body_text = "Waiting for other participants to contribute."
-
-    def is_displayed(self):
-        return not self.session.config["punishment"]
+    # body_text = "Waiting for other participants to contribute."
 
 
 class Punishment(Page):
@@ -67,7 +59,7 @@ class Punishment(Page):
             self.player.punishments_sent.all().update(amount=0)
 
     def is_displayed(self):
-        return self.subsession.round_number <= self.session.config["num_rounds"]
+        return self.subsession.round_number <= self.session.config["num_rounds"] & self.session.config["punishment"]
 
 
 class AfterPunishmentWP(WaitPage):
@@ -89,11 +81,19 @@ class Results(Page):
         return self.subsession.round_number <= self.session.config["num_rounds"]
 
 
+class FinalResults(Page):
+    """Final payofff"""
+
+    def is_displayed(self):
+        return self.subsession.round_number == self.session.config["num_rounds"]
+
+
 page_sequence = [
     Introduction,
     Contribute,
     AfterContribWP,
     Punishment,
     AfterPunishmentWP,
-    Results
+    Results,
+    FinalResults
 ]

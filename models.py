@@ -74,8 +74,9 @@ class Group(BaseGroup):
             p.set_punishment_endowment()
 
     def set_punishments(self):
-        for p in self.get_players():
-            p.set_punishment()
+        if self.session.config["punishment"]:
+            for p in self.get_players():
+                p.set_punishment()
         for p in self.get_players():
             p.set_payoff()
 
@@ -92,6 +93,9 @@ class Player(BasePlayer):
     punishment_endowment = models.IntegerField(initial=0, doc='punishment endowment')
 
     def set_payoff(self):
+        if not self.session.config["punishment"]:
+            self.punishment_received = 0
+            self.punishment_sent = 0
         self.payoff = self.pd_payoff - self.punishment_sent - self.punishment_received
 
     def set_punishment_endowment(self):
