@@ -1,5 +1,5 @@
 _DATA/*
-_DATA/why this folder is empty
+!_DATA/why this folder is empty
 .Rproj.user
 .Rhistory
 .RData
