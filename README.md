@@ -32,6 +32,11 @@ SESSION_CONFIGS = [
 * Punishment (set `punishment` to `True` to add a Deduction page)
 * Threshold (set `threshold` to any number above 0)
 
+
+## Analysis file in Rmarkdown
+
+The file `analyze_classroom_pgg.Rmd` can be used to analyze the results. The file will load the data provided in the `_DATA` folder. Currently it loads the data from the 2019 course (which is ignored by Git due to privacy issues). 
+
 ## Credits
 
 Punishment page from [Philipp Chapkovski](https://github.com/chapkovski/fehr-and-gaechter). 
