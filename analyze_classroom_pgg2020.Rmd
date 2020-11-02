@@ -12,30 +12,27 @@ here <- here::here # because lubridate also has a here function
 library(tidyverse, stringr)
 library(numbers)
 library(dplyr)
+library(anytime) # for converting Epoch times from oTree Page Time 
+
 select <- dplyr::select
 filter <- dplyr::filter
-timespent <- read.csv(here("_DATA", "PageTimes-2020-11-02.csv"), sep = ',', header=TRUE)
-
-timespent$time_stamp <- as.POSIXct(as.POSIXct(timespent$time_stamp, origin="1970-01-01", tz="Europe/Berlin"))
-timespent <- timespent %>% 
-  rename(pp_code = participant__code,
-         pp_id = participant__id_in_session,
-         seconds = seconds_on_page) %>% 
+timespent <- read.csv(here("_DATA", "PageTimes-2020-11-02.csv"), sep = ',', header=TRUE) %>% 
+  rename(pp_code = participant_code) %>% 
+  mutate(timestamp = anytime(epoch_time)) %>% 
   add_count(pp_code, sort=TRUE) %>% 
-  arrange(pp_code, page_index) %>% 
-  select(-c(auto_submitted, subsession_pk, app_name, n)) 
+  filter(app_name == "classroom_pgg") %>% 
+  filter(page_index == 1 | page_index == 6) %>% 
+  select(c(pp_code, page_index, timestamp))
 
-# check this after final order:
-timespent <- timespent %>%
-  group_by(pp_code) %>% 
-  mutate(seconds_total = sum(seconds)) %>%
-  filter(page_index == max(page_index)) %>%
-  select(-c(page_index, pp_id, page_name, time_stamp, seconds)) %>%
-  arrange(pp_code) %>% 
+timespent <- pivot_wider(timespent, names_from = page_index, names_prefix = "page", values_from = timestamp) 
+timespent <- timespent %>% 
+  mutate(seconds_total = difftime(page6, page1, units = "secs")) %>% 
   mutate(pp_minutes= as.integer(seconds_total/60),
-         pp_seconds= mod(seconds_total,60))
+         pp_seconds= mod(as.numeric(seconds_total),60)) %>% 
+  select(-starts_with("page"))
 
-df <- read.csv(here("_DATA", "all_apps_wide_2019-12-05.csv"), sep = ',', header=TRUE) 
+df <- read.csv(here("_DATA", "all_apps_wide_2020-11-02.csv"), sep = ',', header=TRUE) %>% 
+  filter(participant._current_app_name == "classroom_pgg")
 
 df <- df %>% 
   rename(pp_code = participant.code,
@@ -44,32 +41,35 @@ df <- df %>%
          pp_start_time = participant.time_started,
          pp_id = participant.id_in_session,
          session_label = session.label,
-         grup_id = pggfg.1.group.id_in_subsession) # typo is intentional to be able to deselect all other group_ variables
+         grup_id = classroom_pgg.1.group.id_in_subsession) # typo is intentional to be able to deselect all other group_ variables
 
-df <- merge(df,timespent,by="pp_code") %>% 
+df <- merge(df, timespent, by="pp_code", all.x = TRUE) %>% 
+  select(-pp_code)
+rm(timespent)
+
+df <- df %>% 
   rename(session_num_rounds = session.config.num_rounds,
          session_chat = session.config.cheap_talk,
          session_threshold = session.config.threshold,
-         session_punishment = session.config.punishment)
-rm(timespent)
-df <- df %>% 
+         session_punishment = session.config.punishment) %>% 
   select(-contains("config")) %>%
+  select(-contains("floodgame")) %>% 
   select(-contains("punishment_endowment")) %>%
   select(-contains("subsession")) %>%
   select(-contains("id_in_group")) %>%
   select(-contains("_share")) %>%
   select(-contains("average_contribution")) %>%
   select(-contains("pd_payoff")) %>%
-  select(-c(session.experimenter_name, participant._is_bot, participant._max_page_index,
+  select(-c(participant._is_bot, participant._max_page_index,
             participant._current_page_name, participant._current_app_name, participant.visited, 
-            participant.ip_address, participant.mturk_worker_id, participant.mturk_assignment_id, session.mturk_HITId, 
+            participant.mturk_worker_id, participant.mturk_assignment_id, session.mturk_HITId, 
             session.comment, session.mturk_HITGroupId, session.is_demo, participant._index_in_pages,
-            pp_code, participant.payoff_plus_participation_fee)) 
+            participant.payoff_plus_participation_fee)) 
 
 thenames <- names(df)
 function.clean_varnames <-  function(text){
   if(grepl("player", text, perl=TRUE) | grepl("group", text, perl=TRUE)){
-    if(grepl("pggfg", text, perl=TRUE)){text <- sub(pattern = "pggfg.", replacement = "", x = text)}
+    if(grepl("classroom_pgg.", text, perl=TRUE)){text <- sub(pattern = "classroom_pgg.", replacement = "", x = text)}
     if(grepl(".player", text, perl=TRUE)){text <- sub(pattern = ".player", replacement = "", x = text)} 
     if(grepl(".group", text, perl=TRUE)){text <- sub(pattern = ".group", replacement = "", x = text)} 
     text <- strsplit(text, '[.]')
@@ -82,11 +82,11 @@ names(df) <- thenames
 rm(thenames, function.clean_varnames)
 
 
-# to make the data tidy:
-
 df <- df %>% 
+  select(starts_with("pp_"), starts_with("session"), grup_id, ends_with("_1"), ends_with("_2"), ends_with("_3"), ends_with("_4"),
+         ends_with("_5"), ends_with("_6"), ends_with("_7")) %>% 
   gather(variable,value,-c("pp_label", "pp_start_time", "pp_payoff", "pp_id", "session.code", "session_label",
-                           "session_id", "seconds_total", "pp_minutes", "pp_seconds", 
+                           "pp_minutes", "pp_seconds", 
                            "session_chat", "session_threshold", "session_punishment", "session_num_rounds",
                            "grup_id")) %>%
   mutate(round = parse_number(variable)) %>%
@@ -100,7 +100,6 @@ df <- df %>%
          punishment_sent = punishment_sent_,
          session_code = session.code,
          group_id = grup_id) %>% 
-  select(-c("session_id", "seconds_total")) %>% 
   mutate(contribution = case_when(round > session_num_rounds ~ NA_integer_,
                                   TRUE ~ contribution),
          payoff = case_when(round > session_num_rounds ~ NA_integer_,
@@ -121,23 +120,9 @@ df <- df %>%
                                      TRUE ~ reached_threshold)) 
 
 parameters.session1 <- df %>% 
-  filter(session_label == "session 1") %>% 
+  filter(session_label == "test-jantsje") %>% 
   filter(pp_id == max(pp_id), round == 1) %>% 
   select(starts_with("session"), pp_id, group_id)
-
-# remove data with one round only from session 4
-df <- df %>% 
-  filter(session_label != "session 4 - mistake one round")
-
-df <- df %>% 
-  mutate(pp_id = case_when(session_code == "yqh9u6ma" ~ pp_id + 63,
-                        TRUE ~ as.numeric(pp_id)),
-         group_id = case_when(session_code == "yqh9u6ma" ~ group_id + 11,
-                              TRUE ~ as.numeric(group_id))) 
-
-
-df.session4 <- df %>% 
-  filter(session_label == "session 4") 
 ```
 
 ## Session 1: one shot PGG
@@ -155,7 +140,7 @@ In this game, `r parameters.session1$pp_id` students participated.
 ```{r histograms contributions, echo = FALSE, warning = FALSE, message=FALSE}
 df.session1 <- df %>% 
   filter(round == 1,
-         session_label == "session 1")
+         session_label == "test-jantsje") # should be session 1
 
 fig.contribution <- ggplot(df.session1, aes(x=contribution), subset = round == 1) + geom_histogram(binwidth = 5, color = "white") +
   labs(x="Individual contribution", y = "Frequency") 
