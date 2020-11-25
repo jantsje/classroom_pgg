@@ -19,7 +19,7 @@ class Constants(BaseConstants):
 
     # """Amount allocated to each player"""
     endowment = c(100)
-    punishment_endowment = 10
+    punishment_endowment = c(10)
     punishment_factor = 3
 
 
@@ -87,10 +87,10 @@ class Player(BasePlayer):
         doc="""The amount contributed by the player""",
         label="How much will you contribute to the project (from 0 to {})?".format(Constants.endowment)
     )
-    punishment_sent = models.IntegerField()
-    punishment_received = models.IntegerField()
+    punishment_sent = models.CurrencyField()
+    punishment_received = models.CurrencyField()
     pd_payoff = models.CurrencyField(doc='to store payoff from contribution stage')
-    punishment_endowment = models.IntegerField(initial=0, doc='punishment endowment')
+    punishment_endowment = models.CurrencyField(initial=0, doc='punishment endowment')
 
     def set_payoff(self):
         if not self.session.config["punishment"]:

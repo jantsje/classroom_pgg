@@ -11,6 +11,8 @@ class Introduction(Page):
     """Description of the game: How to play and returns expected"""
     pass
 
+    timeout_seconds = 60
+
     def is_displayed(self):
         return self.subsession.round_number == 1
 
@@ -71,6 +73,8 @@ class AfterPunishmentWP(WaitPage):
 
 class Results(Page):
     """Players payoff: How much each has earned"""
+
+    timeout_seconds = 20
 
     def vars_for_template(self):
         return dict(
