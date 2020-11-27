@@ -16,13 +16,18 @@ library(anytime) # for converting Epoch times from oTree Page Time
 
 select <- dplyr::select
 filter <- dplyr::filter
-timespent <- read.csv(here("_DATA", "PageTimes-2020-11-24.csv"), sep = ',', header=TRUE) %>% 
+
+timespent1 <- read.csv(here("_DATA", "PageTimes-2020-11-24.csv"), sep = ',', header=TRUE)
+timespent2 <- read.csv(here("_DATA", "PageTimes-2020-11-26.csv"), sep = ',', header=TRUE)
+timespent <- rbind(timespent1, timespent2) %>% 
   rename(pp_code = participant_code) %>% 
   mutate(timestamp = anytime(epoch_time)) %>% 
   add_count(pp_code, sort=TRUE) %>% 
   filter(app_name == "classroom_pgg") %>% 
   filter(page_index == 1 | page_index == 70) %>% 
   select(c(pp_code, page_index, timestamp))
+
+rm(timespent1, timespent2)
 
 timespent <- pivot_wider(timespent, names_from = page_index, names_prefix = "page", values_from = timestamp) %>% 
   filter(!is.na(page70))
@@ -32,10 +37,13 @@ timespent <- timespent %>%
          pp_seconds= mod(as.numeric(seconds_total),60)) %>% 
   select(-starts_with("page"))
 
-df <- read.csv(here("_DATA", "all_apps_wide_2020-11-24.csv"), sep = ',', header=TRUE) %>% 
+df1 <- read.csv(here("_DATA", "all_apps_wide_2020-11-24.csv"), sep = ',', header=TRUE) %>% 
   filter(participant._current_app_name == "classroom_pgg")
 
-df <- df %>% 
+df2 <- read.csv(here("_DATA", "all_apps_wide_2020-11-26.csv"), sep = ',', header=TRUE) %>% 
+  filter(participant._current_app_name == "classroom_pgg")
+
+df <- rbind(df1, df2) %>% 
   rename(pp_code = participant.code,
          pp_label = participant.label,
          pp_payoff = participant.payoff,
@@ -43,6 +51,7 @@ df <- df %>%
          pp_id = participant.id_in_session,
          session_label = session.label,
          grup_id = classroom_pgg.1.group.id_in_subsession) # typo is intentional to be able to deselect all other group_ variables
+rm(df1, df2)
 
 df <- merge(df, timespent, by="pp_code", all.x = TRUE) %>% 
   select(-pp_code)
@@ -211,8 +220,41 @@ parameters.session4 <- df %>%
   select(starts_with("session"), pp_id, group_id)
 
 ```
+
+```{r clean chat data}
+library(stringr)
+
+chats <- read.csv(here("_DATA", "ChatMessages-2020-11-26.csv"), sep = ',', header=TRUE) %>% 
+  select(c("participant__code", "nickname", "channel", "body", "timestamp")) %>% 
+  mutate(timestamp = anytime(timestamp)) %>% 
+  rename(participant = participant__code) %>% 
+  mutate(channel = as.character(channel)) %>% 
+  mutate(channel = as.integer(str_remove(channel, "3-classroom_pgg-"))) %>% 
+  mutate(group = channel%%70-30) %>% 
+  mutate(group = case_when(group < 0 ~ group + 70, TRUE ~ group),
+         round = as.integer(channel/70))
+
+chat_sum <- chats %>% 
+  group_by(group, round) %>% 
+  tally()
+
+ggplot(chat_sum, aes(x=round)) + 
+  geom_line(data = subset(chat_sum, group == 1), aes(y=n), color = "blue", alpha = 0.5) +
+  geom_jitter(aes(y=n), width = 0.2) +
+  scale_x_continuous(breaks = c(1:10)) + 
+  labs(y="Number of chat messages", x= "Round") 
+
+ggplot(chat_sum) + 
+  geom_boxplot(aes(y = n, group = factor(round))) +
+  scale_x_continuous(breaks = c(1:10), labels = c(1:10)) +
+  labs(y="Number of chat messages", x= "Round") 
+
+
+```
+
+
 ## Session 4: ten rounds PGG
-*Thursday November 21st, 2019*
+*Thursday November 26th, 2020*
 
 In this game, `r parameters.session4$pp_id` students participated.
 
@@ -232,7 +274,7 @@ In this game, `r parameters.session4$pp_id` students participated.
   filter(round == 10) %>% 
   select(pp_label, pp_payoff, session_label) %>% 
   pivot_longer(cols = pp_payoff) %>% 
-   filter(pp_label != "mke240") %>%
+   filter(pp_label != "mke240") %>% # teachers cannot win
    filter(pp_label != "aaa111") %>%
    filter(pp_label != "jml740") %>% 
   group_by(pp_label) %>% 
@@ -305,11 +347,11 @@ ggplot(df.gather, aes(x=round, y=mean.contribution, color = session_label_inf)) 
   geom_errorbar(aes(ymin=lower.ci.contribution, ymax=upper.ci.contribution), alpha=0.9, width=.1) +
   scale_x_continuous(breaks = c(1:10)) + labs(y="Average individual contribution", x= "Round", color = "Session") +
   scale_y_continuous(limit = c(0,100)) + scale_color_brewer(palette="Dark2")
-```
-
-
-
-
-
 
 ```
+
+
+
+
+
+
