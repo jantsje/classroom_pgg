@@ -9,6 +9,16 @@
 
     {% include Constants.instructions_template %}
 
+    {% if session.config.threshold > 0 %}
+{% include 'classroom_pgg/instr_threshold.html' %}
+    {% endif %}
+
+
+    {% if session.config.punishment %}
+{% include 'classroom_pgg/instr_punishment.html' %}
+    {% endif %}
+
+
     {% next_button %}
 
 {% endblock %}

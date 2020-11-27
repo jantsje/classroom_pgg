@@ -15,31 +15,22 @@
         <div class="card-body">
 
             In this stage you can see the decisions and other participants in the your group,
-            You can transfer up to <strong>{{ player.punishment_endowment }} points </strong> from your endowment to
+            You can transfer up to <strong>{{ player.punishment_endowment }} ECU </strong> from your endowment to
             decrease the
             income of these
             participants. By transferring 1 point from your endowment you decrease the income of another
-            participant by {{ session.config.punishment_factor }} points.
+            participant by {{ session.config.punishment_factor }} ECU.
 
         </div>
     </div>
 
-
-
-    {% if form.non_form_errors %}
-        {% for error in form.non_form_errors %}
-            <div class="alert alert-danger mt-3">
-                {{ error }}
-            </div>
-        {% endfor %}
-    {% endif %}
 
     <table class="table table-hover table-striped table-responsive">
         {{ form.management_form }}
         <thead>
         <tr>
             <th>Player:</th>
-            <th>Contibution</th>
+            <th>Contribution</th>
             <th>Deduction tokens</th>
             <th>Effect on their payoff:</th>
         </tr>

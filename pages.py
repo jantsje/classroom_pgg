@@ -11,7 +11,7 @@ class Introduction(Page):
     """Description of the game: How to play and returns expected"""
     pass
 
-    timeout_seconds = 60
+    timeout_seconds = 90
 
     def is_displayed(self):
         return self.subsession.round_number == 1
@@ -61,7 +61,10 @@ class Punishment(Page):
             self.player.punishments_sent.all().update(amount=0)
 
     def is_displayed(self):
-        return self.subsession.round_number <= self.session.config["num_rounds"] & self.session.config["punishment"]
+        if not self.session.config["punishment"]:
+            return False
+        else:
+            return self.subsession.round_number <= self.session.config["num_rounds"]
 
 
 class AfterPunishmentWP(WaitPage):
@@ -86,7 +89,7 @@ class Results(Page):
 
 
 class FinalResults(Page):
-    """Final payofff"""
+    """Final payoff"""
 
     def is_displayed(self):
         return self.subsession.round_number == self.session.config["num_rounds"]

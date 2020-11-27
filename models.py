@@ -19,7 +19,7 @@ class Constants(BaseConstants):
 
     # """Amount allocated to each player"""
     endowment = c(100)
-    punishment_endowment = c(10)
+    punishment_endowment = 10
     punishment_factor = 3
 
 
@@ -87,10 +87,10 @@ class Player(BasePlayer):
         doc="""The amount contributed by the player""",
         label="How much will you contribute to the project (from 0 to {})?".format(Constants.endowment)
     )
-    punishment_sent = models.CurrencyField()
-    punishment_received = models.CurrencyField()
+    punishment_sent = models.IntegerField()
+    punishment_received = models.IntegerField()
     pd_payoff = models.CurrencyField(doc='to store payoff from contribution stage')
-    punishment_endowment = models.CurrencyField(initial=0, doc='punishment endowment')
+    punishment_endowment = models.IntegerField(initial=0, doc='punishment endowment')
 
     def set_payoff(self):
         if not self.session.config["punishment"]:
@@ -100,12 +100,16 @@ class Player(BasePlayer):
 
     def set_punishment_endowment(self):
         assert self.pd_payoff is not None, 'You have to set pd_payoff before setting punishment endowment'
-        self.punishment_endowment = min(self.pd_payoff, Constants.punishment_endowment)
+        self.punishment_endowment = min(int(self.pd_payoff), Constants.punishment_endowment)
 
     def set_punishment(self):
-        self.punishment_sent = sum([i.amount for i in self.punishments_sent.all()])
-        self.punishment_received = sum(
-            [i.amount for i in self.punishments_received.all()]) * self.session.config["punishment_factor"]
+        if None in [i.amount for i in self.punishments_sent.all()]:
+            self.punishment_sent = 0
+            self.punishment_received = 0
+        else:
+            self.punishment_sent = sum([i.amount for i in self.punishments_sent.all()])
+            self.punishment_received = sum(
+                [i.amount for i in self.punishments_received.all()]) * self.session.config["punishment_factor"]
 
 
 class Punishment(djmodels.Model):
